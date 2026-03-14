@@ -20,6 +20,7 @@ For a brand-new continuous task:
 6. Immediately record a first checkpoint with `task(action=checkpoint)` and set the next wake with `task(action=ensure_wake)`.
 7. Read `references/reporting-protocol.md` before sending progress updates.
 8. Use `task(action=report)` or `python3 {baseDir}/scripts/render_progress.py ...` to render a progress bar for user-facing updates.
+9. If Control UI is available, use the `Tasks` page to inspect health, timeline, background sessions, and wake ownership while the task is running.
 
 ## Core rules
 
@@ -31,6 +32,7 @@ For a brand-new continuous task:
 - Reuse the same task slug, task file, and cron job name for the same logical goal.
 - On completion or permanent failure, clean up any wakeups so the task does not zombie-loop.
 - Prefer the `task` tool as the source of truth for status, progress, stats, and wake ownership. The workspace task file is the human-readable companion, not the only runtime record.
+- Assume background execution is recoverable but not magic: runtime metadata persists, background session state is reconciled, and overdue wakes may be auto-recovered, but you still need good logs, artifacts, and idempotent commands.
 
 ## When to use what
 
@@ -38,6 +40,7 @@ For a brand-new continuous task:
 - **Main-session cron/system events**: resume with shared context when you want the main session to own the task.
 - **Isolated cron**: precise or noisy recurring work. Read the task file first because isolated cron runs start fresh.
 - **Background bash + process**: real long-running shell work such as builds, crawls, indexing, downloads, and test suites.
+- **Control UI Tasks page**: operator surface for live progress, health, timeline, wake editing, and manual pause/resume/block/fail actions.
 
 ## Task state machine
 
@@ -139,6 +142,8 @@ Also attach it to the runtime task:
 task action:attach_process id:"<task-id>" processSessionId:"<sessionId>" processCommand:"<summary>" processLogPath:"logs/<task>.log"
 ```
 
+If the runtime can infer a process pid, keep it attached. The supervisor and task service use pid/state reconciliation after restarts.
+
 ### 2.5) Do not start without explicit confirmation
 
 Before launching long-running work, confirm:
@@ -175,6 +180,14 @@ Preferred runtime pattern:
 task action:ensure_wake id:"<task-id>" wakeStrategy:"cron_every" scheduleEveryMs:300000
 ```
 
+If Control UI is available, the same wake configuration can be edited from the `Tasks` page. The page now supports:
+
+- changing wake strategy
+- editing cron/every/at fields
+- applying wake
+- applying wake and running now
+- cancelling wake
+
 ### 4) On every wake
 
 Do this in order:
@@ -195,6 +208,12 @@ If the stored `process` session is gone:
 3. If relaunching is safe, update `Recovery notes` and relaunch idempotently.
 4. Never assume missing in-memory `process` state means the task failed.
 
+If the runtime marks the task as `overdue`, assume the task service may attempt recovery by:
+
+- reconciling background session state
+- forcing an overdue wake
+- rebuilding a missing cron wake when the task still has wake configuration
+
 ### 5) Escalate only when needed
 
 Notify the user only for:
@@ -211,6 +230,8 @@ When escalating, include:
 - what was tried
 - what evidence you checked
 - the minimum user action needed
+
+If the task is recoverable without user input, prefer updating runtime state and continuing over escalating immediately.
 
 ## Progress reporting
 
@@ -242,6 +263,12 @@ Default user-facing update shape:
 - next checkpoint or blocker
 
 Use `references/reporting-protocol.md` for the exact format.
+
+Control UI expectation:
+
+- progress bar should move when progress is measurable
+- timeline should show wake/report/checkpoint/recovery activity
+- health should stay `ok` or explain why not
 
 ## Before ending any run
 
@@ -286,6 +313,32 @@ When a task is terminally failed:
 - disable or remove related cron jobs
 - avoid infinite retries
 - notify the user once with the blocker or failure summary
+
+## Runtime notes
+
+Current runtime behavior you should rely on:
+
+- durable task records persist independently of chat history
+- background process metadata persists and is rehydrated after restart
+- detached background sessions are reconciled against pid liveness
+- task service derives `ok|warning|stale|overdue|terminal` health states
+- task service may auto-recover overdue wakes or rebuild missing wake jobs
+- task service may also nudge waiting tasks forward when declared artifacts already exist on disk and no background process is still running
+
+Current runtime limits you should still plan around:
+
+- old processes are not fully re-attached for interactive stdin/stdout control after restart
+- a long-running shell command still needs durable logs and artifacts to be truly trustworthy
+- auto-recovery helps, but does not replace careful task design
+
+## Control UI checklist
+
+If the Control UI `Tasks` page is available, treat it as an operator console:
+
+- verify health is not `warning`, `stale`, or `overdue` without explanation
+- inspect the timeline after automatic recovery
+- edit wake strategy and save it from the task page if the default cadence is wrong
+- update success criteria, cadence, escalation rules, stop conditions, and recovery notes when the task contract changes
 
 ## Anti-patterns
 

@@ -8,6 +8,7 @@ Use this format for progress updates on long-running work.
 - Make progress visible.
 - Avoid noisy chatter.
 - Distinguish active progress from waiting and blocked states.
+- Keep the runtime task record and Control UI timeline consistent with the message you send.
 
 ## Update triggers
 
@@ -41,6 +42,8 @@ Changed: parsed 4/10 sources, wrote `artifacts/index.json`
 Next: check the background process again at 15:30 local time
 ```
 
+If the runtime marks the task as `warning`, `stale`, or `overdue`, say that plainly in the summary instead of pretending the task is healthy.
+
 ## Progress percentage rules
 
 - Use a real percent when work is measurable.
@@ -55,3 +58,11 @@ Next: check the background process again at 15:30 local time
 - `blocked`: emphasize the minimum user action needed
 - `done`: emphasize verified outputs and cleanup performed
 - `failed`: emphasize evidence, retries attempted, and why it stopped
+
+## Operator surfaces
+
+When the Control UI `Tasks` page is available:
+
+- keep the message and runtime status aligned
+- expect the timeline to show wake, report, checkpoint, and recovery activity
+- use the task page for operator edits; do not invent a second source of truth in chat
