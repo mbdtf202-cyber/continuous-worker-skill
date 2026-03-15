@@ -14,6 +14,7 @@ Confirm these items in one compact message:
 6. Stop conditions
 
 Do not start background work until the user has explicitly approved the plan.
+Store the agreed contract in the runtime `task` record. Do not rely on a markdown note as the canonical record.
 
 ## Default wording pattern
 

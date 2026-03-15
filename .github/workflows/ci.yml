@@ -15,7 +15,37 @@ jobs:
         with:
           python-version: "3.x"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate helper scripts
+        run: |
+          python3 skills/continuous-worker/scripts/test_init_task.py
+          python3 skills/continuous-worker/scripts/test_render_progress.py
+          bash test/release_continuous_worker_skill.sh
+
       - name: Package skill
         run: |
           python3 scripts/package_skill.py skills/continuous-worker dist
           test -f dist/continuous-worker.skill
+
+      - name: Smoke import packaged skill
+        env:
+          HOME: ${{ runner.temp }}/continuous-worker-skill-home
+          OPENCLAW_PROFILE: continuous-worker-skill-smoke
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME"
+          npm install -g openclaw@latest
+          openclaw skills import "$PWD/dist/continuous-worker.skill" --replace
+          openclaw skills info continuous-worker --json > "$RUNNER_TEMP/continuous-worker-skill-info.json"
+          python3 - <<'PY' "$RUNNER_TEMP/continuous-worker-skill-info.json"
+          import json
+          import sys
+
+          with open(sys.argv[1], "r", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          assert payload.get("name") == "continuous-worker", payload
+          PY

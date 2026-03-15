@@ -26,6 +26,10 @@ class InitTaskTest(TestCase):
         self.assertIn("Slug: example-task", rendered)
         self.assertIn("Goal: Ship the feature", rendered)
         self.assertIn("- tests pass", rendered)
+        self.assertIn(
+            "Canonical runtime: the `task` record for `example-task` is the source of truth",
+            rendered,
+        )
 
 
 if __name__ == "__main__":

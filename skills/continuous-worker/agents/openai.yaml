@@ -4,4 +4,4 @@ interface:
   default_prompt: "Use $continuous-worker to confirm a long-running task, start it safely, and keep reporting progress with a visual bar."
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

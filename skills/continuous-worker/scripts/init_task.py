@@ -50,46 +50,37 @@ def parse_args() -> argparse.Namespace:
 
 
 def render_task(args: argparse.Namespace, slug: str) -> str:
+    goal = args.goal.strip()
     criteria = args.criterion or ["replace me with a concrete success criterion"]
     criteria_block = "\n".join(f"- {item}" for item in criteria)
-    return f"""# Task: {args.title}
+    return f"""# Task Notes: {args.title}
 
 Slug: {slug}
-Status: active
-Goal: {args.goal}
+Canonical runtime: the `task` record for `{slug}` is the source of truth
+Goal: {goal}
 Success criteria:
 {criteria_block}
 
-Current state: newly created
-Next action: confirm details with the user or start the first safe step
-Next wake: unset
-Wake owner: {args.wake_owner}
-Retry budget: {args.retry_budget}
-User update policy: {args.update_policy}
-Progress: 0
-Progress bar: [--------------------] 0%
-Blockers:
-- none
+Operator notes:
+- add local-only notes here when they are useful
+- do not duplicate runtime fields that already live in the `task` record
 
-Background work:
-- sessionId: none
-  command: none
-  log: logs/{slug}.log
-  startedAt: none
+Preferred wake owner: {args.wake_owner}
+Retry budget reference: {args.retry_budget}
+Update policy reference: {args.update_policy}
 
-Artifacts:
+Logs:
+- logs/{slug}.log
+
+Artifacts to watch:
 - none yet
 
-Notify user when:
-- blocked
-- milestone reached
-- done
-
 Recovery notes:
-- read this file first on every wake
+- read the runtime task record first on every wake
+- use this file only for operator notes that are not already stored in the runtime task
 - verify logs and artifacts before relaunching work
 
-Last update: pending
+Last note update: pending
 """
 
 

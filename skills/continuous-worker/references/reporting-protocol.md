@@ -9,6 +9,7 @@ Use this format for progress updates on long-running work.
 - Avoid noisy chatter.
 - Distinguish active progress from waiting and blocked states.
 - Keep the runtime task record and Control UI timeline consistent with the message you send.
+- Use the runtime task's derived health and artifact readiness as the canonical operator signal.
 
 ## Update triggers
 
@@ -42,7 +43,7 @@ Changed: parsed 4/10 sources, wrote `artifacts/index.json`
 Next: check the background process again at 15:30 local time
 ```
 
-If the runtime marks the task as `warning`, `stale`, or `overdue`, say that plainly in the summary instead of pretending the task is healthy.
+If the runtime marks the task as `warning`, `stale`, or `overdue`, say that plainly in the summary instead of pretending the task is healthy. `task(action=get)` and `task(action=report)` expose the derived health, issues, and artifact readiness to support this.
 
 ## Progress percentage rules
 

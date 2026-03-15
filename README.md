@@ -62,10 +62,11 @@ Use $continuous-worker. I want you to keep working on this task 24/7. Confirm th
 The agent should:
 
 1. confirm the goal, success criteria, allowed actions, reporting cadence, and stop conditions
-2. create a durable task record
-3. start recoverable work
-4. keep updating progress, stats, and wake ownership
-5. report blockers, milestones, and completion
+2. create a durable runtime task
+3. optionally create a local notes file if operator notes are useful
+4. start recoverable work
+5. keep updating progress, health, stats, and wake ownership
+6. report blockers, milestones, and completion
 
 ## Repository layout
 
@@ -73,6 +74,7 @@ The agent should:
 - `scripts/package_skill.py`: create a distributable `.skill` archive
 - `scripts/release_continuous_worker_skill.sh`: build release artifacts
 - `templates/README.release.template.md`: template for release-facing install instructions
+- `test/release_continuous_worker_skill.sh`: release-script validation
 
 ## Build a packaged `.skill`
 
@@ -87,7 +89,7 @@ This creates:
 ## Build release artifacts
 
 ```bash
-./scripts/release_continuous_worker_skill.sh --repo mbdtf202-cyber/continuous-worker-skill --tag continuous-worker-skill-v0.1.0 --clawhub-version 0.1.0
+./scripts/release_continuous_worker_skill.sh --repo mbdtf202-cyber/continuous-worker-skill --tag continuous-worker-skill-v0.1.0
 ```
 
 This creates:
@@ -96,11 +98,36 @@ This creates:
 - `dist/continuous-worker.skill.sha256`
 - `dist/continuous-worker.README.md`
 
+The release script derives ClawHub version `0.1.0` from tag `continuous-worker-skill-v0.1.0` by default. You can override it with `--clawhub-version`.
+
 ## Publish to ClawHub
 
 ```bash
 clawhub publish ./skills/continuous-worker --slug continuous-worker --name "Continuous Worker" --version 0.1.0 --changelog "Release continuous-worker packaged skill"
 ```
+
+## Release validation
+
+Local validation:
+
+```bash
+python3 skills/continuous-worker/scripts/test_init_task.py
+python3 skills/continuous-worker/scripts/test_render_progress.py
+bash test/release_continuous_worker_skill.sh
+```
+
+GitHub Actions also:
+
+- packages the skill
+- validates helper scripts
+- validates release tag to ClawHub version mapping
+- smoke-imports the built `.skill` with `openclaw skills import`
+
+## Notes
+
+- Runtime task state is canonical; any workspace markdown note is optional operator context only.
+- Heartbeat wakes depend on a live session; use cron when you need a more durable autonomous review loop.
+- The skill requires explicit user approval before starting background work.
 
 ## GitHub Releases
 

@@ -15,7 +15,7 @@ For a brand-new continuous task:
 1. Read `references/confirmation-protocol.md`.
 2. Confirm the goal, success criteria, allowed actions, report cadence, and escalation rules with the user.
 3. Create the runtime task with the `task` tool. Use `action=create` after the user explicitly says to start.
-4. Create the workspace task file with `python3 {baseDir}/scripts/init_task.py ...` or by following the inline template below.
+4. Optionally create a workspace notes file with `python3 {baseDir}/scripts/init_task.py ...` if local operator notes would help.
 5. Start the work in a recoverable way.
 6. Immediately record a first checkpoint with `task(action=checkpoint)` and set the next wake with `task(action=ensure_wake)`.
 7. Read `references/reporting-protocol.md` before sending progress updates.
@@ -31,12 +31,12 @@ For a brand-new continuous task:
 - If a shell command may outlive the current run, leave a disk log or artifact trail in the workspace. The in-memory `process` registry is useful but not durable across gateway restarts.
 - Reuse the same task slug, task file, and cron job name for the same logical goal.
 - On completion or permanent failure, clean up any wakeups so the task does not zombie-loop.
-- Prefer the `task` tool as the source of truth for status, progress, stats, and wake ownership. The workspace task file is the human-readable companion, not the only runtime record.
+- Prefer the `task` tool as the source of truth for status, progress, stats, contract fields, and wake ownership. The workspace markdown file is optional operator context, not a second database.
 - Assume background execution is recoverable but not magic: runtime metadata persists, background session state is reconciled, and overdue wakes may be auto-recovered, but you still need good logs, artifacts, and idempotent commands.
 
 ## When to use what
 
-- **Heartbeat**: periodic review, lightweight supervision, low-urgency follow-through.
+- **Heartbeat**: periodic review tied to a live source session. Useful for lightweight supervision, but not equivalent to a durable cron wake.
 - **Main-session cron/system events**: resume with shared context when you want the main session to own the task.
 - **Isolated cron**: precise or noisy recurring work. Read the task file first because isolated cron runs start fresh.
 - **Background bash + process**: real long-running shell work such as builds, crawls, indexing, downloads, and test suites.
@@ -56,11 +56,11 @@ Do not leave the state ambiguous.
 
 ## Workflow
 
-### 1) Create or reuse a durable task file
+### 1) Create the runtime task record first
 
-Use a stable path such as `tasks/<slug>.md` or `memory/active-tasks/<slug>.md`.
+Create the runtime task first. Add a workspace note file only when it adds value.
 
-Also create a runtime task record with the `task` tool:
+Create the runtime task record with the `task` tool:
 
 ```text
 task action:create title:"<title>" goal:"<goal>" status:"active" successCriteria:["..."]
@@ -76,50 +76,44 @@ python3 {baseDir}/scripts/init_task.py \
   --criterion "<done criterion 2>"
 ```
 
-Minimum template:
+Optional operator note template:
 
 ```md
-# Task: <title>
+# Task Notes: <title>
 
 Slug: <stable-slug>
-Status: active
+Canonical runtime: the `task` record for `<stable-slug>` is the source of truth
 Goal: <what "done" means>
 Success criteria:
+
 - <criterion 1>
 - <criterion 2>
 
-Current state: <short factual summary>
-Next action: <single next step>
-Next wake: <timestamp or schedule rule>
-Wake owner: <heartbeat | cron:<job-name> | manual>
-Retry budget: <for example 3 attempts or 24h>
-User update policy: blockers, milestones, completion only
-Progress: <0-100 or unknown>
-Progress bar: <render with scripts/render_progress.py>
-Blockers:
-- none
+Operator notes:
 
-Background work:
-- sessionId: <process session id or none>
-  command: <command summary>
-  log: <workspace-relative log path>
-  startedAt: <timestamp>
+- local-only notes that are not already stored in the runtime task
+
+Preferred wake owner: <heartbeat | cron:<job-name> | manual>
+Retry budget reference: <for example 3 attempts or 24h>
+Update policy reference: blockers, milestones, completion only
+
+Logs:
+
+- <workspace-relative log path>
 
 Artifacts:
+
 - <path>
 
-Notify user when:
-- blocked
-- milestone reached
-- done
-
 Recovery notes:
-- how to resume if this run ends or the gateway restarts
 
-Last update: <timestamp>
+- read the runtime task first on every wake
+- local-only notes about how to resume if this run ends or the gateway restarts
+
+Last note update: <timestamp>
 ```
 
-Use one file per logical task. Do not split one task across many ad-hoc notes.
+Use one runtime task per logical goal. If you keep a note file, keep one note file per logical task.
 
 ### 2) Start work in a recoverable way
 
@@ -192,14 +186,14 @@ If Control UI is available, the same wake configuration can be edited from the `
 
 Do this in order:
 
-1. Read the task file first.
-1.5 Read the runtime task record with `task(action=get)`.
+1. Read the runtime task record with `task(action=get)` first.
+   1.5 If a workspace notes file exists, read it second.
 2. Check any attached background `process` session with `poll` or `log`.
 3. Read workspace logs and artifacts.
 4. Update runtime state with `task(action=touch)` or `task(action=checkpoint)`.
-5. Mirror the essential state into the task file.
+5. Update the optional notes file only if local operator notes changed.
 6. Either take the next meaningful step or schedule the next wake.
-6. If nothing needs attention, stay silent or return `HEARTBEAT_OK` during heartbeat runs.
+7. If nothing needs attention, stay silent or return `HEARTBEAT_OK` during heartbeat runs.
 
 If the stored `process` session is gone:
 
@@ -240,7 +234,7 @@ Keep progress visible in both the task file and user-facing updates.
 - If you can estimate a real percentage, record it.
 - If a true percentage is not defensible, derive progress from milestones or phases and label it as an estimate.
 - Do not fake precision. `40% estimated` is better than an invented exact number.
-- Prefer the runtime task record for progress state:
+- Prefer the runtime task record for progress state. It now carries the canonical retry budget, update policy, waiting kind, notify rules, and other contract fields.
 
 ```text
 task action:checkpoint id:"<task-id>" progressStep:2 progressTotal:5 phase:"testing" currentState:"Finished 2 of 5 milestones"
@@ -274,7 +268,7 @@ Control UI expectation:
 
 Check all of these:
 
-1. Is the task file updated?
+1. Is the runtime task updated?
 2. Is the status explicit?
 3. Is the next wake explicit, or is the task terminal?
 4. If background work exists, are `sessionId`, log path, and artifact path recorded?
@@ -289,7 +283,8 @@ Suggested pattern:
 ```md
 # Continuous worker
 
-- Review active task files under `tasks/` or `memory/active-tasks/`.
+- Review runtime tasks first.
+- If optional notes files exist, read them after the runtime task.
 - Resume any task whose `Next wake` is due.
 - Check attached background session ids, logs, and artifacts.
 - If no active task needs attention, reply `HEARTBEAT_OK`.
@@ -324,6 +319,7 @@ Current runtime behavior you should rely on:
 - task service derives `ok|warning|stale|overdue|terminal` health states
 - task service may auto-recover overdue wakes or rebuild missing wake jobs
 - task service may also nudge waiting tasks forward when declared artifacts already exist on disk and no background process is still running
+- heartbeat wakes are session-dependent and should be treated as lighter-weight than cron wakes
 
 Current runtime limits you should still plan around:
 
@@ -353,5 +349,5 @@ If the Control UI `Tasks` page is available, treat it as an operator console:
 
 ## What this skill can and cannot do
 
-- This skill can make OpenClaw behave like a persistent worker by combining task files, heartbeat, cron, and background commands.
-- This skill cannot turn the current agent runtime into a truly durable single run that survives every restart or crash. For that, OpenClaw core needs a first-class task runtime.
+- This skill can make OpenClaw behave like a persistent worker by combining runtime tasks, optional operator notes, heartbeat, cron, and background commands.
+- This skill cannot make one single shell process durable across every restart or crash. Durable logs, artifacts, and resumable commands are still required.
